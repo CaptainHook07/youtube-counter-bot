@@ -34,9 +34,12 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         return
 
 def run_web_server():
-    server = HTTPServer(("0.0.0.0", PORT), HealthCheckHandler)
-    logger.info(f"Health check web server running on port {PORT}")
-    server.serve_forever()
+    try:
+        server = HTTPServer(("0.0.0.0", PORT), HealthCheckHandler)
+        logger.info(f"Health check web server running on port {PORT}")
+        server.serve_forever()
+    except Exception as e:
+        logger.warning(f"Web server could not bind to port {PORT} (might be already bound or local): {e}")
 
 threading.Thread(target=run_web_server, daemon=True).start()
 
@@ -83,7 +86,7 @@ def format_channel_name(sub_count: str) -> str:
     styled_num = "".join(small_caps.get(c, c) for c in sub_count)
     return f"〔🔴〕ꜱᴜʙꜱ: {styled_num}"
 
-@tasks.loop(minutes=10)
+@tasks.loop(minutes=2)
 async def update_counter_task():
     try:
         guild = client.get_guild(GUILD_ID)
