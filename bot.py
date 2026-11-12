@@ -3,6 +3,8 @@ import re
 import urllib.request
 import asyncio
 import logging
+import threading
+from http.server import HTTPServer, BaseHTTPRequestHandler
 import discord
 from discord.ext import tasks
 from dotenv import load_dotenv
@@ -19,6 +21,24 @@ load_dotenv()
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 YOUTUBE_URL = os.getenv("YOUTUBE_CHANNEL_URL", "https://www.youtube.com/@wjd-d4z")
 GUILD_ID = int(os.getenv("GUILD_ID", "1564580022604406814"))
+PORT = int(os.getenv("PORT", 8080))
+
+# Tiny health check web server for Render / Cloud hosting free web service
+class HealthCheckHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/plain")
+        self.end_headers()
+        self.wfile.write(b"YouTube Counter Bot is running 24/7!")
+    def log_message(self, format, *args):
+        return
+
+def run_web_server():
+    server = HTTPServer(("0.0.0.0", PORT), HealthCheckHandler)
+    logger.info(f"Health check web server running on port {PORT}")
+    server.serve_forever()
+
+threading.Thread(target=run_web_server, daemon=True).start()
 
 intents = discord.Intents.default()
 client = discord.Client(intents=intents)
@@ -36,22 +56,16 @@ def fetch_youtube_subscribers(url: str) -> str:
         with urllib.request.urlopen(req, timeout=15) as resp:
             html = resp.read().decode("utf-8")
 
-        # 1. Simple text match
         m1 = re.search(r'"subscriberCountText":\{"simpleText":"([^"]+)"\}', html)
         if m1:
             raw = m1.group(1)
-            # Remove "subscribers" or "subscriber"
-            clean = re.sub(r'(?i)\s*subscribers?', '', raw).strip()
-            return clean
+            return re.sub(r'(?i)\s*subscribers?', '', raw).strip()
 
-        # 2. Accessibility label match
         m2 = re.search(r'"subscriberCountText":\{"accessibility":\{"accessibilityData":\{"label":"([^"]+)"\}\}', html)
         if m2:
             raw = m2.group(1)
-            clean = re.sub(r'(?i)\s*subscribers?', '', raw).strip()
-            return clean
+            return re.sub(r'(?i)\s*subscribers?', '', raw).strip()
 
-        # 3. Fallback regex
         all_subs = re.findall(r'([\d.,KkMmBb]+)\s*(?:subscribers|subscriber)', html, re.IGNORECASE)
         if all_subs:
             return all_subs[0].strip()
@@ -62,10 +76,6 @@ def fetch_youtube_subscribers(url: str) -> str:
     return None
 
 def format_channel_name(sub_count: str) -> str:
-    """
-    Format the subscriber count into server aesthetic small-caps.
-    e.g. 24 -> 〔🔴〕ꜱᴜʙꜱ: 24
-    """
     small_caps = {
         '0': '0', '1': '1', '2': '2', '3': '3', '4': '4', '5': '5', '6': '6', '7': '7', '8': '8', '9': '9',
         'k': 'ᴋ', 'K': 'ᴋ', 'm': 'ᴍ', 'M': 'ᴍ', 'b': 'ʙ', 'B': 'ʙ', '.': '.', ',': ','
@@ -75,7 +85,6 @@ def format_channel_name(sub_count: str) -> str:
 
 @tasks.loop(minutes=10)
 async def update_counter_task():
-    """Update subscriber count voice channel every 10 minutes (respecting Discord rate limits)."""
     try:
         guild = client.get_guild(GUILD_ID)
         if not guild:
@@ -90,14 +99,12 @@ async def update_counter_task():
         target_name = format_channel_name(subs)
         logger.info(f"Fetched subscriber count: '{subs}'. Formatted name: '{target_name}'")
 
-        # Find existing counter voice channel
         counter_channel = None
         for vc in guild.voice_channels:
             if "ꜱᴜʙꜱ:" in vc.name or "subscribers" in vc.name.lower() or "subs:" in vc.name.lower():
                 counter_channel = vc
                 break
 
-        # Disallow @everyone from connecting (locked channel display)
         overwrites = {
             guild.default_role: discord.PermissionOverwrite(
                 view_channel=True,
@@ -112,7 +119,6 @@ async def update_counter_task():
             )
 
         if not counter_channel:
-            # Create at top of channels (position 0)
             counter_channel = await guild.create_voice_channel(
                 name=target_name,
                 overwrites=overwrites,
@@ -142,4 +148,3 @@ if __name__ == "__main__":
         logger.critical("No DISCORD_BOT_TOKEN found in .env!")
     else:
         client.run(TOKEN)
-
