@@ -118,18 +118,25 @@ async def update_counter_task():
                 connect=True
             )
 
+        # Find stats category or create one
+        stats_cat = discord.utils.get(guild.categories, name="📊│ꜱᴇʀᴠᴇʀ ꜱᴛᴀᴛꜱ")
+
         if not counter_channel:
             counter_channel = await guild.create_voice_channel(
                 name=target_name,
+                category=stats_cat,
                 overwrites=overwrites,
                 position=0,
                 reason="YouTube Live Subscriber Counter"
             )
             logger.info(f"Created new subscriber counter channel: {counter_channel.name} (id={counter_channel.id})")
         else:
-            if counter_channel.name != target_name:
-                await counter_channel.edit(name=target_name, reason="YouTube Live Subscriber Update")
-                logger.info(f"Updated counter channel name to: {target_name}")
+            edit_kwargs = {"name": target_name, "reason": "YouTube Live Subscriber Update"}
+            if stats_cat and counter_channel.category != stats_cat:
+                edit_kwargs["category"] = stats_cat
+            if counter_channel.name != target_name or counter_channel.category != stats_cat:
+                await counter_channel.edit(**edit_kwargs)
+                logger.info(f"Updated counter channel: {target_name}")
             else:
                 logger.info("Channel name is already up-to-date.")
 
