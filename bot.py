@@ -19,7 +19,7 @@ logger = logging.getLogger("YouTubeCounterBot")
 load_dotenv()
 
 TOKEN = os.getenv("DISCORD_BOT_TOKEN")
-YOUTUBE_URL = os.getenv("YOUTUBE_CHANNEL_URL", "https://www.youtube.com/@wjd-d4z")
+YOUTUBE_URL = os.getenv("YOUTUBE_CHANNEL_URL", "https://www.youtube.com/@Cr7busta_7")
 GUILD_ID = int(os.getenv("GUILD_ID", "1564580022604406814"))
 PORT = int(os.getenv("PORT", 8080))
 
